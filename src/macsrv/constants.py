@@ -21,6 +21,7 @@ PID_FILE = STATE_DIR / "pid"
 STARTED_AT_FILE = STATE_DIR / "started_at"
 EXPIRES_AT_FILE = STATE_DIR / "expires_at"
 LOGFILE = STATE_DIR / "logfile"
+DISPLAY_SLEEP_SAVED_FILE = STATE_DIR / "display_sleep_saved"
 
 # ── Config defaults ───────────────────────────────────────────────────────
 

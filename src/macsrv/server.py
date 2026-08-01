@@ -13,6 +13,7 @@ from .constants import (
     PID_FILE,
     STARTED_AT_FILE,
     EXPIRES_AT_FILE,
+    DISPLAY_SLEEP_SAVED_FILE,
     STATE_DIR,
     EXIT_SUCCESS,
     EXIT_ERROR,
@@ -174,6 +175,12 @@ def start(
     # Kill any stale caffeinate processes first
     _kill_all_caffeinate()
 
+    # Set display sleep to 1 min for quick screen-off
+    _set_display_sleep(1)
+
+    # Force display to sleep immediately
+    _force_display_sleep()
+
     # Start caffeinate
     # caffeinate -s keeps system awake on AC power but lets display sleep
     # normally. No -i/-d/-u: display follows normal sleep timeout.
@@ -250,6 +257,7 @@ def stop() -> int:
 
     logger.info("Server stopped (PID %d)", pid)
     print(f"💤 Mac Server stopped (PID {pid}).")
+    _restore_display_sleep()
     cleanup_state()
     return EXIT_SUCCESS
 
@@ -269,11 +277,105 @@ def restart(cfg: MacSrvConfig) -> int:
 
 def cleanup_state() -> None:
     """Remove all state files."""
-    for f in (PID_FILE, STARTED_AT_FILE, EXPIRES_AT_FILE):
+    for f in (PID_FILE, STARTED_AT_FILE, EXPIRES_AT_FILE, DISPLAY_SLEEP_SAVED_FILE):
         try:
             f.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+def _get_display_sleep() -> Optional[int]:
+    """Read current display sleep timeout from pmset."""
+    try:
+        result = subprocess.run(
+            ["pmset", "-g"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        for line in result.stdout.splitlines():
+            if line.strip().startswith("displaysleep"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    return int(parts[1])
+    except (subprocess.SubprocessError, ValueError, OSError):
+        pass
+    return None
+
+
+def _set_display_sleep(minutes: int) -> None:
+    """Set display sleep timeout.
+
+    Tries sudo first (may prompt for password). If sudo is unavailable,
+    falls back to forcing display sleep immediately.
+    """
+    logger = get_logger()
+
+    # Only save if we haven't already saved
+    if not DISPLAY_SLEEP_SAVED_FILE.exists():
+        current = _get_display_sleep()
+        if current is not None:
+            DISPLAY_SLEEP_SAVED_FILE.write_text(str(current))
+            logger.info("Saved display sleep value: %d min", current)
+
+    # Try sudo -n first (non-interactive, uses cached credentials)
+    for cmd in (
+        ["sudo", "-n", "pmset", "-a", "displaysleep", str(minutes)],
+        ["sudo", "pmset", "-a", "displaysleep", str(minutes)],
+    ):
+        try:
+            result = subprocess.run(cmd, timeout=10, capture_output=True, text=True)
+            if result.returncode == 0:
+                logger.info("Set display sleep to %d min", minutes)
+                return
+            # sudo -n fails with non-zero if no cached creds; try next
+            if "-n" in cmd:
+                continue
+            logger.warning("sudo pmset failed: %s", result.stderr.strip())
+        except subprocess.SubprocessError as e:
+            if "-n" in cmd:
+                continue
+            logger.warning("Failed to set display sleep: %s", e)
+
+    # If sudo failed, force display sleep now as best-effort
+    logger.info("sudo unavailable — forcing display sleep immediately")
+    _force_display_sleep()
+    print("ℹ️  Run once to cache sudo: sudo pmset -a displaysleep 1")
+
+
+def _restore_display_sleep() -> None:
+    """Restore the original display sleep timeout."""
+    logger = get_logger()
+    if not DISPLAY_SLEEP_SAVED_FILE.exists():
+        return
+    try:
+        original = int(DISPLAY_SLEEP_SAVED_FILE.read_text().strip())
+        for cmd in (
+            ["sudo", "-n", "pmset", "-a", "displaysleep", str(original)],
+            ["sudo", "pmset", "-a", "displaysleep", str(original)],
+        ):
+            try:
+                result = subprocess.run(cmd, timeout=10, capture_output=True, text=True)
+                if result.returncode == 0:
+                    logger.info("Restored display sleep to %d min", original)
+                    break
+            except subprocess.SubprocessError:
+                if "-n" in cmd:
+                    continue
+        DISPLAY_SLEEP_SAVED_FILE.unlink(missing_ok=True)
+    except (ValueError, OSError, subprocess.SubprocessError) as e:
+        logger.warning("Failed to restore display sleep: %s", e)
+
+
+def _force_display_sleep() -> None:
+    """Force display to sleep immediately."""
+    try:
+        subprocess.run(
+            ["pmset", "displaysleepnow"],
+            timeout=5,
+        )
+    except subprocess.SubprocessError:
+        pass
 
 
 def _format_seconds(seconds: int) -> str:

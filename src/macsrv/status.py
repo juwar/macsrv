@@ -43,7 +43,7 @@ def display_status() -> int:
     print()
     print("  Power")
     print(f"  System    : {'Awake' if remaining_seconds > 0 else 'Allowed to Sleep'}")
-    print(f"  Display   : {'Sleeps on schedule' if remaining_seconds > 0 else 'Allowed to Sleep'}")
+    print(f"  Display   : {'Forced sleep (1 min timeout)' if remaining_seconds > 0 else 'Allowed to Sleep'}")
     print()
 
     return EXIT_SUCCESS
