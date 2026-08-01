@@ -139,9 +139,9 @@ def start(
     _ensure_state_dir()
 
     # Start caffeinate
-    # caffeinate -ims keeps system awake but lets display sleep normally
-    # (no -d or -u: screen can sleep, useful for headless remote access)
-    cmd = ["caffeinate", "-ims", "-t", str(seconds)]
+    # caffeinate -s keeps system awake on AC power but lets display sleep
+    # normally. No -i/-d/-u: display follows normal sleep timeout.
+    cmd = ["caffeinate", "-s", "-t", str(seconds)]
     logger.info("Starting: %s", " ".join(cmd))
 
     try:
