@@ -54,6 +54,39 @@ def _is_pid_alive(pid: int) -> bool:
         return False
 
 
+def _kill_all_caffeinate() -> None:
+    """Kill all caffeinate processes owned by the current user.
+
+    Prevents orphaned processes from a previous macsrv run that
+    might still hold power assertions (e.g. PreventUserIdleDisplaySleep).
+    """
+    logger = get_logger()
+    try:
+        result = subprocess.run(
+            ["pgrep", "-u", str(os.getuid()), "caffeinate"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return
+        for pid_str in result.stdout.strip().splitlines():
+            try:
+                pid = int(pid_str)
+                os.kill(pid, signal.SIGTERM)
+                for _ in range(5):
+                    if not _is_pid_alive(pid):
+                        break
+                    time.sleep(0.1)
+                else:
+                    os.kill(pid, signal.SIGKILL)
+                logger.info("Killed stale caffeinate PID %d", pid)
+            except (ValueError, ProcessLookupError, PermissionError):
+                pass
+    except (subprocess.SubprocessError, FileNotFoundError):
+        pass
+
+
 def is_running() -> Tuple[bool, Optional[int]]:
     """Check if the server is currently running.
 
@@ -137,6 +170,9 @@ def start(
         return EXIT_ERROR
 
     _ensure_state_dir()
+
+    # Kill any stale caffeinate processes first
+    _kill_all_caffeinate()
 
     # Start caffeinate
     # caffeinate -s keeps system awake on AC power but lets display sleep
