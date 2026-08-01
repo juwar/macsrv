@@ -82,25 +82,29 @@ def _check_caffeinate() -> Check:
 
 
 def _check_remote_login() -> Check:
+    """Check if SSH Remote Login is enabled.
+
+    Uses ``pgrep`` to check for active sshd process instead of
+    ``systemsetup`` which requires root.
+    """
     try:
         result = subprocess.run(
-            ["systemsetup", "-getremotelogin"],
+            ["pgrep", "-q", "sshd"],
             capture_output=True,
-            text=True,
             timeout=5,
         )
-        if "On" in result.stdout:
+        if result.returncode == 0:
             return Check("SSH (Remote Login) enabled", True)
         return Check(
             "SSH (Remote Login) enabled",
             False,
-            "Run: sudo systemsetup -setremotelogin on",
+            "No sshd process found. Enable in System Settings > General > Sharing > Remote Login.",
         )
     except (subprocess.SubprocessError, FileNotFoundError):
         return Check(
             "SSH (Remote Login) enabled",
             False,
-            "Could not check. Run: sudo systemsetup -setremotelogin on",
+            "Could not check. Enable in System Settings > General > Sharing > Remote Login.",
         )
 
 
