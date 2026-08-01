@@ -42,8 +42,8 @@ def display_status() -> int:
     print(f"  PID       : {pid}")
     print()
     print("  Power")
-    print(f"  Display   : {'Awake' if remaining_seconds > 0 else 'Allowed to Sleep'}")
     print(f"  System    : {'Awake' if remaining_seconds > 0 else 'Allowed to Sleep'}")
+    print(f"  Display   : Sleeps normally (no forced wake)")
     print()
 
     return EXIT_SUCCESS
