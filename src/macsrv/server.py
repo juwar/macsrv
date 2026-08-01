@@ -102,6 +102,7 @@ def is_running() -> Tuple[bool, Optional[int]]:
         return True, pid
 
     # Stale PID — clean up
+    _restore_display_sleep()
     cleanup_state()
     return False, None
 
