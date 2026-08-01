@@ -98,13 +98,13 @@ def _check_remote_login() -> Check:
         return Check(
             "SSH (Remote Login) enabled",
             False,
-            "No sshd process found. Enable in System Settings > General > Sharing > Remote Login.",
+            "Run: sudo systemsetup -setremotelogin on",
         )
     except (subprocess.SubprocessError, FileNotFoundError):
         return Check(
             "SSH (Remote Login) enabled",
             False,
-            "Could not check. Enable in System Settings > General > Sharing > Remote Login.",
+            "Run: sudo systemsetup -setremotelogin on",
         )
 
 
